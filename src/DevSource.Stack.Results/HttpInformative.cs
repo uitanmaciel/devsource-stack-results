@@ -6,16 +6,20 @@ internal sealed class HttpInformative(InformativeType informativeType, string? m
 {
     public InformativeType InformativeType { get; } = informativeType;
     public string? Message { get; } = message;
+
+    public static HttpInformative GetInformative(InformativeType informativeType)
+    {
+        if(InformativeMap.TryGetValue(informativeType, out var informative)) return informative;
+        throw new ArgumentOutOfRangeException(nameof(informativeType), informativeType, null);
+    }
     
-    public static HttpInformative GetInformative(InformativeType informativeType) 
-        => informativeType switch
-        {
-            InformativeType.Continue => Continue,
-            InformativeType.SwitchingProtocols => SwitchingProtocols,
-            InformativeType.Processing => Processing,
-            InformativeType.EarlyHints => EarlyHints,
-            _ => throw new ArgumentOutOfRangeException(nameof(informativeType), informativeType, null)
-        };
+    private static readonly Dictionary<InformativeType, HttpInformative> InformativeMap = new()
+    {
+        [InformativeType.Continue] = Continue,
+        [InformativeType.SwitchingProtocols] = SwitchingProtocols,
+        [InformativeType.Processing] = Processing,
+        [InformativeType.EarlyHints] = EarlyHints
+    };
     
     private static HttpInformative Continue =>
         new HttpInformative(InformativeType.Continue,

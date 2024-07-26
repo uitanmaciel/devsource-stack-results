@@ -8,17 +8,21 @@ internal sealed class HttpRedirect(RedirectType redirectType, string? message)
     public string? Message { get; } = message;
     
     public static HttpRedirect GetRedirect(RedirectType redirectType) 
-        => redirectType switch
-        {
-            RedirectType.MultipleChoices => MultipleChoices,
-            RedirectType.MovedPermanently => MovedPermanently,
-            RedirectType.Found => Found,
-            RedirectType.SeeOther => SeeOther,
-            RedirectType.NotModified => NotModified,
-            RedirectType.TemporaryRedirect => TemporaryRedirect,
-            RedirectType.PermanentRedirect => PermanentRedirect,
-            _ => throw new ArgumentOutOfRangeException(nameof(redirectType), redirectType, null)
-        };
+    {
+        if (RedirectMap.TryGetValue(redirectType, out var redirect)) return redirect;
+        throw new ArgumentOutOfRangeException(nameof(redirectType), redirectType, null);
+    }
+    
+    private static Dictionary<RedirectType, HttpRedirect> RedirectMap { get; } = new()
+    {
+        [RedirectType.MultipleChoices] = MultipleChoices,
+        [RedirectType.MovedPermanently] = MovedPermanently,
+        [RedirectType.Found] = Found,
+        [RedirectType.SeeOther] = SeeOther,
+        [RedirectType.NotModified] = NotModified,
+        [RedirectType.TemporaryRedirect] = TemporaryRedirect,
+        [RedirectType.PermanentRedirect] = PermanentRedirect
+    };
     
     private static HttpRedirect MultipleChoices =>
         new HttpRedirect(RedirectType.MultipleChoices, "The request has more than one possible response. The user-agent or the user should choose one of them.");
