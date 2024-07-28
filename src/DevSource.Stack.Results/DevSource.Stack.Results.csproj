@@ -4,6 +4,21 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Title>DevSource.Stack.Results</Title>
+    <Authors>uitanmaciel</Authors>
+    <Description>DevSource.Stack.Results is a C# library designed to simplify error handling and improve the readability of your code. It provides a standardized way to return and handle results from functions and methods, clearly distinguishing between successful and failed results.</Description>
+    <PackageLicenseUrl>https://github.com/uitanmaciel/devsource-stack-results/blob/main/LICENSE</PackageLicenseUrl>
+    <PackageIcon>devsource-icon.jpeg</PackageIcon>
+    <RepositoryUrl>https://github.com/uitanmaciel/devsource-stack-results</RepositoryUrl>
+    <PackageTags>Results, Result Pattern</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="devsource-icon.jpeg">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+  </ItemGroup>
 
 </Project>
