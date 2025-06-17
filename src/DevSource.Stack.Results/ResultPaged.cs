@@ -1,5 +1,9 @@
 ﻿using System.Text.Json.Serialization;
+using DevSource.Stack.Results.Abstractions;
 using DevSource.Stack.Results.StatusCodeTypes;
+using System.Collections.Generic;
+using System;
+using System.Linq;
 
 namespace DevSource.Stack.Results;
 
@@ -11,7 +15,23 @@ public class ResultPaged<TData> : ResultBase
     [JsonPropertyName("previousPage")] public string? PreviousPage { get; init; } = null!;
     [JsonPropertyName("data")] public TData? Data { get; init; }
     [JsonIgnore] public int? PageSize { get; init; }
-    [JsonIgnore] public int TotalPages => (int)Math.Ceiling(Count / (double)PageSize!);
+
+    [JsonIgnore]
+    public int TotalPages
+    {
+        get
+        {
+            if (PageSize == null || PageSize == 0)
+            {
+                return 0;
+            }
+            if (Count == 0)
+            {
+                return 0;
+            }
+            return (int)Math.Ceiling(Count / (double)PageSize);
+        }
+    }
     
     public ResultPaged(int? statusCode, int count, int? page, int? pageSize, TData? data, string? nextPage = null, string? previousPage = null, IList<string>? message = null)
     {
@@ -20,8 +40,8 @@ public class ResultPaged<TData> : ResultBase
         Page = page;
         PageSize = pageSize;
         Data = data;
-        NextPage = nextPage ?? string.Empty;
-        PreviousPage = previousPage ?? string.Empty;
+        NextPage = nextPage;
+        PreviousPage = previousPage;
         Messages = message;
     }
     
@@ -40,22 +60,41 @@ public class ResultPaged<TData> : ResultBase
     /// </returns>
     /// <remarks>
     /// This method retrieves the default error messages associated with the specified <paramref name="errorType"/> from the <see cref="HttpError"/> class. 
-    /// If custom messages are provided through the <paramref name="message"/> parameter, they will be used instead. 
+    /// If custom messages are provided through the <paramref name="message"/> parameter, they will be used instead.
+    /// If no custom message is provided and no default message is configured for the <paramref name="errorType"/>, an <see cref="InvalidOperationException"/> is thrown.
     /// The method returns a <see cref="ResultPaged{TData}"/> instance containing the status code of the error type, 
     /// with the data part set to <c>default</c> and the page details set to <c>null</c> as the result represents a failure.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if no custom message is provided and no default error message is configured for the specified <paramref name="errorType"/>.
+    /// </exception>
     public static ResultPaged<TData> Failure(ErrorType errorType, IList<string>? message = null)
     {
-        var error = HttpError.GetError(errorType);
+        IErrorStatus errorDetails = new HttpErrorProvider().GetError(errorType);
+        IList<string> messagesToUse;
+
+        if (message != null)
+        {
+            messagesToUse = message;
+        }
+        else
+        {
+            if (errorDetails.Messages == null || !errorDetails.Messages.Any())
+            {
+                throw new InvalidOperationException($"No default error message is configured for ErrorType '{errorDetails.ErrorType}'.");
+            }
+            messagesToUse = errorDetails.Messages;
+        }
+
         return new ResultPaged<TData>(
-            statusCode: (int)error.ErrorType, 
-            count: 0, 
-            page: null, 
-            pageSize: null, 
-            data: default, 
-            nextPage: null, 
-            previousPage: null, 
-            message: error.Messages!.Select(errorMessage => errorMessage).ToList());
+            statusCode: (int)errorDetails.ErrorType,
+            count: 0,
+            page: null,
+            pageSize: null,
+            data: default,
+            nextPage: null,
+            previousPage: null,
+            message: messagesToUse);
     }
     
     /// <summary>
@@ -79,16 +118,16 @@ public class ResultPaged<TData> : ResultBase
     /// </remarks>
     public static ResultPaged<TData> Informative(InformativeType informativeType, IList<string>? message = null)
     {
-        var informative = HttpInformative.GetInformative(informativeType);
+        IInformativeStatus informativeDetails = new HttpInformativeProvider().GetInformative(informativeType);
         return new ResultPaged<TData>(
-            statusCode: (int)informative.InformativeType, 
+            statusCode: (int)informativeDetails.InformativeType,
             count: 0, 
             page: null, 
             pageSize: null, 
             data: default, 
             nextPage: null, 
             previousPage: null,
-            message ?? new List<string> { informative.Message! });
+            message ?? informativeDetails.Messages);
     }
     
     /// <summary>
@@ -111,16 +150,16 @@ public class ResultPaged<TData> : ResultBase
     /// </remarks>
     public static ResultPaged<TData> Redirect(RedirectType redirectType, IList<string>? message = null)
     {
-        var redirect = HttpRedirect.GetRedirect(redirectType);
+        IRedirectStatus redirectDetails = new HttpRedirectProvider().GetRedirect(redirectType);
         return new ResultPaged<TData>(
-            statusCode: (int)redirect.RedirectType, 
+            statusCode: (int)redirectDetails.RedirectType,
             count: 0, 
             page: null, 
             pageSize: null, 
             data: default, 
             nextPage: null, 
             previousPage: null,
-            message ?? new List<string> { redirect.Message! });
+            message ?? redirectDetails.Messages);
     }
     
     /// <summary>
@@ -140,34 +179,55 @@ public class ResultPaged<TData> : ResultBase
     /// An optional list of custom success messages. If not provided, the default message for the success type will be used.
     /// </param>
     /// <returns>
-    /// A <see cref="ResultPaged{TData}"/> instance representing the success response, or <c>null</c> if no success messages are available for the specified success type.
+    /// A <see cref="ResultPaged{TData}"/> instance representing the success response.
     /// </returns>
     /// <remarks>
     /// This method retrieves the default success messages associated with the specified <paramref name="successType"/> from the <see cref="HttpSuccess"/> class. 
     /// If custom messages are provided through the <paramref name="message"/> parameter, they will be used instead. 
-    /// The method returns the first <see cref="ResultPaged{TData}"/> instance created from the available messages for the success type, 
-    /// containing the status code, the provided pagination details, the data, and the corresponding message(s). If no messages are found, it returns <c>null</c>.
+    /// If no custom message is provided and no default message is configured for the <paramref name="successType"/>, an <see cref="InvalidOperationException"/> is thrown.
+    /// The method returns a <see cref="ResultPaged{TData}"/> instance created from the available messages for the success type,
+    /// containing the status code, the provided pagination details, the data, and the corresponding message(s).
     /// </remarks>
-    public static ResultPaged<TData>? Success(
-        SuccessType successType, 
-        int count, 
-        int page, 
-        int pageSize, 
-        TData data, 
-        string? nextPage = null, 
-        string? previousPage = null, 
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if no custom message is provided and no default success message is configured for the specified <paramref name="successType"/>.
+    /// </exception>
+    public static ResultPaged<TData> Success(
+        SuccessType successType,
+        int count,
+        int page,
+        int pageSize,
+        TData data,
+        string? nextPage = null,
+        string? previousPage = null,
         IList<string>? message = null)
     {
-        var success = HttpSuccess.GetSuccess(successType);
-        return success.Messages!.Select(successMessage => 
-            new ResultPaged<TData>(
-                (int)success.SuccessType, 
-                count, 
-                page, 
-                pageSize, 
-                data, 
-                nextPage, 
-                previousPage, 
-                message ?? new List<string> { successMessage })).FirstOrDefault();
+        ISuccessStatus successDetails = new HttpSuccessProvider().GetSuccess(successType);
+        if (message != null)
+        {
+            return new ResultPaged<TData>(
+                (int)successDetails.SuccessType,
+                count,
+                page,
+                pageSize,
+                data,
+                nextPage,
+                previousPage,
+                message);
+        }
+
+        if (successDetails.Messages == null || !successDetails.Messages.Any())
+        {
+            throw new InvalidOperationException($"No default success message is configured for SuccessType '{successDetails.SuccessType}'.");
+        }
+
+        return new ResultPaged<TData>(
+            (int)successDetails.SuccessType,
+            count,
+            page,
+            pageSize,
+            data,
+            nextPage,
+            previousPage,
+            successDetails.Messages);
     }
 }

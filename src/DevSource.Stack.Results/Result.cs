@@ -1,5 +1,9 @@
 ﻿using System.Text.Json.Serialization;
+using DevSource.Stack.Results.Abstractions;
 using DevSource.Stack.Results.StatusCodeTypes;
+using System.Collections.Generic;
+using System;
+using System.Linq;
 
 namespace DevSource.Stack.Results;
 
@@ -19,18 +23,29 @@ public class Result : ResultBase
     /// An optional list of custom error messages. If not provided, the default error messages for the error type will be used.
     /// </param>
     /// <returns>
-    /// A <see cref="Result"/> instance representing the failure, or <c>null</c> if no error messages are available for the specified error type.
+    /// A <see cref="Result"/> instance representing the failure.
     /// </returns>
     /// <remarks>
     /// This method retrieves the default error messages associated with the specified <paramref name="errorType"/> from the <see cref="HttpError"/> class. 
     /// If custom messages are provided through the <paramref name="message"/> parameter, they will be used instead. 
-    /// The method returns the first <see cref="Result"/> instance created from the error messages, or <c>null</c> if no messages are available.
+    /// If no custom message is provided and no default message is configured for the <paramref name="errorType"/>, an <see cref="InvalidOperationException"/> is thrown.
     /// </remarks>
-    public static Result? Failure(ErrorType errorType, IList<string>? message = null)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if no custom message is provided and no default error message is configured for the specified <paramref name="errorType"/>.
+    /// </exception>
+    public static Result Failure(ErrorType errorType, IList<string>? message = null)
     {
-        var error = HttpError.GetError(errorType);
-        return error.Messages!.Select(errorMessage => 
-            new Result((int)error.ErrorType, message ?? new List<string> { errorMessage })).FirstOrDefault();
+        IErrorStatus errorDetails = new HttpErrorProvider().GetError(errorType);
+        if (message != null)
+        {
+            return new Result((int)errorDetails.ErrorType, message);
+        }
+
+        if (errorDetails.Messages == null || !errorDetails.Messages.Any())
+        {
+            throw new InvalidOperationException($"No default error message is configured for ErrorType '{errorDetails.ErrorType}'.");
+        }
+        return new Result((int)errorDetails.ErrorType, errorDetails.Messages);
     }
     
     /// <summary>
@@ -50,8 +65,8 @@ public class Result : ResultBase
     /// </remarks>
     public static Result Informative(InformativeType informativeType, IList<string>? message = null)
     {
-        var informative = HttpInformative.GetInformative(informativeType);
-        return new Result((int)informative.InformativeType, message ?? new List<string> { informative.Message! });
+        IInformativeStatus informativeDetails = new HttpInformativeProvider().GetInformative(informativeType);
+        return new Result((int)informativeDetails.InformativeType, message ?? informativeDetails.Messages);
     }
     
     /// <summary>
@@ -71,8 +86,8 @@ public class Result : ResultBase
     /// </remarks>
     public static Result Redirect(RedirectType redirectType, IList<string>? message = null)
     {
-        var redirect = HttpRedirect.GetRedirect(redirectType);
-        return new Result((int)redirect.RedirectType, message ?? new List<string> { redirect.Message! });
+        IRedirectStatus redirectDetails = new HttpRedirectProvider().GetRedirect(redirectType);
+        return new Result((int)redirectDetails.RedirectType, message ?? redirectDetails.Messages);
     }
     
     
@@ -84,18 +99,29 @@ public class Result : ResultBase
     /// An optional list of custom success messages. If not provided, the default message for the success type will be used.
     /// </param>
     /// <returns>
-    /// A <see cref="Result"/> instance representing the success response, or <c>null</c> if no success messages are available for the specified success type.
+    /// A <see cref="Result"/> instance representing the success response.
     /// </returns>
     /// <remarks>
     /// This method retrieves the default success messages associated with the specified <paramref name="successType"/> from the <see cref="HttpSuccess"/> class. 
     /// If custom messages are provided through the <paramref name="message"/> parameter, they will be used instead. 
-    /// The method returns the first <see cref="Result"/> instance created from the success messages, or <c>null</c> if no messages are available.
+    /// If no custom message is provided and no default message is configured for the <paramref name="successType"/>, an <see cref="InvalidOperationException"/> is thrown.
     /// </remarks>
-    public static Result? Success(SuccessType successType, IList<string>? message = null)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if no custom message is provided and no default success message is configured for the specified <paramref name="successType"/>.
+    /// </exception>
+    public static Result Success(SuccessType successType, IList<string>? message = null)
     {
-        var success = HttpSuccess.GetSuccess(successType);
-        return success.Messages!.Select(successMessage => 
-            new Result((int)success.SuccessType, message ?? new List<string> { successMessage })).FirstOrDefault();
+        ISuccessStatus successDetails = new HttpSuccessProvider().GetSuccess(successType);
+        if (message != null)
+        {
+            return new Result((int)successDetails.SuccessType, message);
+        }
+
+        if (successDetails.Messages == null || !successDetails.Messages.Any())
+        {
+            throw new InvalidOperationException($"No default success message is configured for SuccessType '{successDetails.SuccessType}'.");
+        }
+        return new Result((int)successDetails.SuccessType, successDetails.Messages);
     }
 }
 
@@ -121,19 +147,30 @@ public class Result<TData>: ResultBase
     /// An optional list of custom error messages. If not provided, the default error messages for the error type will be used.
     /// </param>
     /// <returns>
-    /// A <see cref="Result{TData}"/> instance representing the failure, or <c>null</c> if no error messages are available for the specified error type.
+    /// A <see cref="Result{TData}"/> instance representing the failure.
     /// </returns>
     /// <remarks>
     /// This method retrieves the default error messages associated with the specified <paramref name="errorType"/> from the <see cref="HttpError"/> class. 
     /// If custom messages are provided through the <paramref name="message"/> parameter, they will be used instead. 
-    /// The method returns the first <see cref="Result{TData}"/> instance created from the error messages, with the data set to <c>default</c> for the type <typeparamref name="TData"/>, 
-    /// or <c>null</c> if no messages are available.
+    /// If no custom message is provided and no default message is configured for the <paramref name="errorType"/>, an <see cref="InvalidOperationException"/> is thrown.
+    /// The data will be set to <c>default</c> for the type <typeparamref name="TData"/>.
     /// </remarks>
-    public static Result<TData>? Failure(ErrorType errorType, IList<string>? message = null)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if no custom message is provided and no default error message is configured for the specified <paramref name="errorType"/>.
+    /// </exception>
+    public static Result<TData> Failure(ErrorType errorType, IList<string>? message = null)
     {
-        var error = HttpError.GetError(errorType);
-        return error.Messages!.Select(errorMessage => 
-            new Result<TData>((int)error.ErrorType, default, message ?? new List<string> { errorMessage })).FirstOrDefault();
+        IErrorStatus errorDetails = new HttpErrorProvider().GetError(errorType);
+        if (message != null)
+        {
+            return new Result<TData>((int)errorDetails.ErrorType, default, message);
+        }
+
+        if (errorDetails.Messages == null || !errorDetails.Messages.Any())
+        {
+            throw new InvalidOperationException($"No default error message is configured for ErrorType '{errorDetails.ErrorType}'.");
+        }
+        return new Result<TData>((int)errorDetails.ErrorType, default, errorDetails.Messages);
     }
     
     /// <summary>
@@ -156,8 +193,8 @@ public class Result<TData>: ResultBase
     /// </remarks>
     public static Result<TData> Informative(InformativeType informativeType, IList<string>? message = null)
     {
-        var informative = HttpInformative.GetInformative(informativeType);
-        return new Result<TData>((int)informative.InformativeType, default, message ?? new List<string> { informative.Message! });
+        IInformativeStatus informativeDetails = new HttpInformativeProvider().GetInformative(informativeType);
+        return new Result<TData>((int)informativeDetails.InformativeType, default, message ?? informativeDetails.Messages);
     }
     
     /// <summary>
@@ -180,8 +217,8 @@ public class Result<TData>: ResultBase
     /// </remarks>
     public static Result<TData> Redirect(RedirectType redirectType, IList<string>? message = null)
     {
-        var redirect = HttpRedirect.GetRedirect(redirectType);
-        return new Result<TData>((int)redirect.RedirectType, default, message ?? new List<string> { redirect.Message! });
+        IRedirectStatus redirectDetails = new HttpRedirectProvider().GetRedirect(redirectType);
+        return new Result<TData>((int)redirectDetails.RedirectType, default, message ?? redirectDetails.Messages);
     }
     
     /// <summary>
@@ -198,19 +235,29 @@ public class Result<TData>: ResultBase
     /// An optional list of custom success messages. If not provided, the default message for the success type will be used.
     /// </param>
     /// <returns>
-    /// A <see cref="Result{TData}"/> instance representing the success response, or <c>null</c> if no success messages are available for the specified success type.
+    /// A <see cref="Result{TData}"/> instance representing the success response.
     /// </returns>
     /// <remarks>
     /// This method retrieves the default success messages associated with the specified <paramref name="successType"/> from the <see cref="HttpSuccess"/> class. 
     /// If custom messages are provided through the <paramref name="message"/> parameter, they will be used instead. 
-    /// The method returns the first <see cref="Result{TData}"/> instance created from the available messages for the success type, 
-    /// containing the status code, the provided data, and the corresponding message(s). If no messages are found, it returns <c>null</c>.
+    /// If no custom message is provided and no default message is configured for the <paramref name="successType"/>, an <see cref="InvalidOperationException"/> is thrown.
+    /// The method returns a <see cref="Result{TData}"/> instance containing the status code, the provided data, and the corresponding message(s).
     /// </remarks>
-    public static Result<TData>? Success(SuccessType successType, TData? data, IList<string>? message = null)
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if no custom message is provided and no default success message is configured for the specified <paramref name="successType"/>.
+    /// </exception>
+    public static Result<TData> Success(SuccessType successType, TData? data, IList<string>? message = null)
     {
-        var success = HttpSuccess.GetSuccess(successType);
-        return success.Messages!
-            .Select(successMessage => 
-                new Result<TData>((int)success.SuccessType, data, message ?? new List<string> { successMessage })).FirstOrDefault();
+        ISuccessStatus successDetails = new HttpSuccessProvider().GetSuccess(successType);
+        if (message != null)
+        {
+            return new Result<TData>((int)successDetails.SuccessType, data, message);
+        }
+
+        if (successDetails.Messages == null || !successDetails.Messages.Any())
+        {
+            throw new InvalidOperationException($"No default success message is configured for SuccessType '{successDetails.SuccessType}'.");
+        }
+        return new Result<TData>((int)successDetails.SuccessType, data, successDetails.Messages);
     }
 }

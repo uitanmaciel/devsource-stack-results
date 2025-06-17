@@ -1,13 +1,22 @@
-﻿using DevSource.Stack.Results.StatusCodeTypes;
+﻿using DevSource.Stack.Results.Abstractions;
+using DevSource.Stack.Results.StatusCodeTypes;
+using System.Collections.Generic;
 
 namespace DevSource.Stack.Results;
 
-internal sealed class HttpSuccess(SuccessType successType, IList<string>? messages)
+public sealed class HttpSuccess : ISuccessStatus
 {
-    public SuccessType SuccessType { get; } = successType;
-    public IList<string>? Messages { get; } = messages ?? [];
-    
-    public static HttpSuccess GetSuccess(SuccessType successType)
+    public SuccessType SuccessType { get; }
+    public IList<string> Messages { get; } // Changed from IList<string>?
+
+    // Constructor made public
+    public HttpSuccess(SuccessType successType, IList<string>? messages)
+    {
+        SuccessType = successType;
+        Messages = messages ?? new List<string>(); // Ensure non-null
+    }
+
+    public static HttpSuccess GetSuccess(SuccessType successType) // Returns concrete HttpSuccess
     {
         if (SuccessMap.TryGetValue(successType, out var success)) return success;
         throw new ArgumentOutOfRangeException(nameof(successType), successType, null);

@@ -1,13 +1,23 @@
-﻿using DevSource.Stack.Results.StatusCodeTypes;
+﻿using DevSource.Stack.Results.Abstractions;
+using DevSource.Stack.Results.StatusCodeTypes;
+using System.Collections.Generic;
 
 namespace DevSource.Stack.Results;
 
-internal sealed class HttpError(ErrorType errorType, IList<string>? messages)
+public sealed class HttpError : IErrorStatus
 {
-    public ErrorType ErrorType { get; } = errorType;
-    public IList<string> Messages { get; } = messages ?? [];
+    public ErrorType ErrorType { get; }
+    public IList<string> Messages { get; }
+
+    // Constructor used by static properties to create instances for the map
+    // Made public as the class is now public.
+    public HttpError(ErrorType errorType, IList<string>? messages)
+    {
+        ErrorType = errorType;
+        Messages = messages ?? new List<string>();
+    }
     
-    public static HttpError GetError(ErrorType errorType)
+    public static HttpError GetError(ErrorType errorType) // Returns concrete HttpError
     {
         if(ErrorMap.TryGetValue(errorType, out var error)) return error;
         throw new ArgumentOutOfRangeException(nameof(errorType), errorType, null);

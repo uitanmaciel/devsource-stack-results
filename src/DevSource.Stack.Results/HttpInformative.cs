@@ -1,13 +1,25 @@
-﻿using DevSource.Stack.Results.StatusCodeTypes;
+﻿using DevSource.Stack.Results.Abstractions;
+using DevSource.Stack.Results.StatusCodeTypes;
+using System.Collections.Generic;
 
 namespace DevSource.Stack.Results;
 
-internal sealed class HttpInformative(InformativeType informativeType, string? message)
+public sealed class HttpInformative : IInformativeStatus
 {
-    public InformativeType InformativeType { get; } = informativeType;
-    public string? Message { get; } = message;
+    public InformativeType InformativeType { get; }
+    public string Message { get; } // Changed from string?
 
-    public static HttpInformative GetInformative(InformativeType informativeType)
+    // IInformativeStatus implementation
+    public IList<string> Messages => new List<string> { Message };
+
+    // Constructor made public, message parameter changed to non-nullable
+    public HttpInformative(InformativeType informativeType, string message)
+    {
+        InformativeType = informativeType;
+        Message = message;
+    }
+
+    public static HttpInformative GetInformative(InformativeType informativeType) // Returns concrete HttpInformative
     {
         if(InformativeMap.TryGetValue(informativeType, out var informative)) return informative;
         throw new ArgumentOutOfRangeException(nameof(informativeType), informativeType, null);
